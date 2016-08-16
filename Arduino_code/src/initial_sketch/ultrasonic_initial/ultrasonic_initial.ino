@@ -54,7 +54,10 @@ class ultrasonic
   }
   
 };
-ultrasonic u1(5,4);
+ultrasonic u1(4,11);
+ultrasonic u2(7,12);
+ultrasonic u3(2,13);
+
 void setup()
 {
  Serial.begin(9600);
@@ -64,11 +67,20 @@ void setup()
 
 void loop()
 {
-  float d;
+  float d1,d2,d3;
   u1.uinit();
-  d=u1.calculate();
-  Serial.println(d);
-  delay(100);
+  u2.uinit();
+  u3.uinit();
+  d1=u1.calculate();
+  d2=u2.calculate();
+  d3=u3.calculate();
+  Serial.print("d1=");
+  Serial.println(d1);
+  Serial.print("d2=");
+  Serial.println(d2);
+  Serial.print("d3=");
+  Serial.println(d3);
+
   
   
 }
