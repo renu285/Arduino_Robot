@@ -48,6 +48,10 @@ class locomotion
   void move_left();
   void move_right();
   void move_left();
+  void move_front(unsigned long time);
+  void move_back(unsigned long time);
+  void move_right(unsigned long time);
+  void move_left(unsigned long time);
   void init();
 };
 

@@ -44,12 +44,43 @@ locomotion::move_front()
       pending1=1;
     }
 }
+locomotion::move_front(unsigned long time)
+{
+	unsigned long currentMillis = millis();
+    
+        if(locoState!=0 && (currentMillis-previousMillis) >= time && act==1)
+        {
+         locoState=0;
+         pending1=0;
+         act=0;
+         previousMillis = currentMillis;
+         digitalWrite(LMOTOR_P,LOW);
+         digitalWrite(LMOTOR_N,LOW);
+         digitalWrite(RMOTOR_P,LOW);
+         digitalWrite(RMOTOR_N,LOW);
+        }
+    else if(locoState==0 && (currentMillis-previousMillis)<time && act==0)
+    {
+      //previousMillis = currentMillis;
+      locoState = 1;
+      pending1=1;
+      act=1;
+      digitalWrite(LMOTOR_P,HIGH);
+      digitalWrite(LMOTOR_N,LOW);
+      digitalWrite(RMOTOR_P,HIGH);
+      digitalWrite(RMOTOR_N,LOW);
+    }
+    else if(locoState!=0)
+    {
+      pending1=1;
+    }
+}
 
 locomotion::move_back()
   {
     unsigned long currentMillis = millis();
     pending2=1;
-    if(locoState!=0 && (currentMillis-previousMillis) >= 2000 && act==2)
+    if(locoState!=0 && (currentMillis-previousMillis) >= 1000 && act==2)
     {
       locoState=0;
       pending2=0;
@@ -60,7 +91,38 @@ locomotion::move_back()
       digitalWrite(RMOTOR_P,LOW);
       digitalWrite(RMOTOR_N,LOW);
     }
-    else if(locoState==0 && (currentMillis-previousMillis)<2000 && act==0)
+    else if(locoState==0 && (currentMillis-previousMillis)<1000 && act==0)
+    {
+      //previousMillis = currentMillis;
+      locoState = 1;
+      pending2=1;
+      act=2;
+      digitalWrite(LMOTOR_P,LOW);
+      digitalWrite(LMOTOR_N,HIGH);
+      digitalWrite(RMOTOR_P,LOW);
+      digitalWrite(RMOTOR_N,HIGH);
+    }
+    else if(locoState!=0)
+    {
+      pending2=1;
+    }
+  }
+locomotion::move_back(unsigned long time)
+  {
+    unsigned long currentMillis = millis();
+    pending2=1;
+    if(locoState!=0 && (currentMillis-previousMillis) >= time && act==2)
+    {
+      locoState=0;
+      pending2=0;
+      act=0;
+      previousMillis = currentMillis;
+      digitalWrite(LMOTOR_P,LOW);
+      digitalWrite(LMOTOR_N,LOW);
+      digitalWrite(RMOTOR_P,LOW);
+      digitalWrite(RMOTOR_N,LOW);
+    }
+    else if(locoState==0 && (currentMillis-previousMillis)<time && act==0)
     {
       //previousMillis = currentMillis;
       locoState = 1;
@@ -80,7 +142,7 @@ locomotion::move_right()
   {
     unsigned long currentMillis = millis();
     //pending2=1;
-    if(locoState!=0 && (currentMillis-previousMillis) >= 2000 && act==3)
+    if(locoState!=0 && (currentMillis-previousMillis) >= 1000 && act==3)
     {
       locoState=0;
       pending2=0;
@@ -91,7 +153,38 @@ locomotion::move_right()
       digitalWrite(RMOTOR_P,LOW);
       digitalWrite(RMOTOR_N,LOW);
     }
-    else if(locoState==0 && (currentMillis-previousMillis)<2000 && act==0)
+    else if(locoState==0 && (currentMillis-previousMillis)<1000 && act==0)
+    {
+      //previousMillis = currentMillis;
+      locoState = 1;
+      //pending2=1;
+      act=3;
+      digitalWrite(LMOTOR_P,LOW);
+      digitalWrite(LMOTOR_N,LOW);
+      digitalWrite(RMOTOR_P,HIGH);
+      digitalWrite(RMOTOR_N,LOW);
+    }
+    else if(locoState!=0)
+    {
+      pending2=1;
+    }
+  }
+locomotion::move_right(unsigned long time)
+  {
+    unsigned long currentMillis = millis();
+    //pending2=1;
+    if(locoState!=0 && (currentMillis-previousMillis) >= time && act==3)
+    {
+      locoState=0;
+      pending2=0;
+      act=0;
+      previousMillis = currentMillis;
+      digitalWrite(LMOTOR_P,LOW);
+      digitalWrite(LMOTOR_N,LOW);
+      digitalWrite(RMOTOR_P,LOW);
+      digitalWrite(RMOTOR_N,LOW);
+    }
+    else if(locoState==0 && (currentMillis-previousMillis)<time && act==0)
     {
       //previousMillis = currentMillis;
       locoState = 1;
@@ -111,7 +204,7 @@ locomotion::move_right()
   {
     unsigned long currentMillis = millis();
     //pending2=1;
-    if(locoState!=0 && (currentMillis-previousMillis) >= 1000 && act==4)
+    if(locoState!=0 && (currentMillis-previousMillis) >= time && act==4)
     {
       locoState=0;
       pending2=0;
@@ -122,7 +215,7 @@ locomotion::move_right()
       digitalWrite(RMOTOR_P,LOW);
       digitalWrite(RMOTOR_N,LOW);
     }
-    else if(locoState==0 && (currentMillis-previousMillis)<1000 && act==0)
+    else if(locoState==0 && (currentMillis-previousMillis)<time && act==0)
     {
       //previousMillis = currentMillis;
       locoState = 1;
