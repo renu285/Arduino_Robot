@@ -50,13 +50,13 @@ void loop()
   
   double dirang;
   // Convert the data
-  int xMag = ((data[1] * 256) + data[0]);
-  int yMag = ((data[3] * 256) + data[2]);
-  int zMag = ((data[5] * 256) + data[4]);
+  int xMag = ((data[1] * 256) + data[0]) - 467;
+  int yMag = ((data[3] * 256) + data[2]) + 834;
+  int zMag = ((data[5] * 256) + data[4]) - 1255 ;
   long mag2=(xMag*xMag) + (yMag*yMag) + (zMag*zMag);
   double mag=sqrt(mag2);
   double temp=xMag/yMag;
-  dirang= atan2(xMag,yMag) * 180/PI;
+ dirang= atan2(xMag,yMag) * 180/PI;
 //  if(yMag>0)
 //  {
 //    
@@ -79,8 +79,8 @@ void loop()
 //      dirang=0;
 //    }
 //    
- // }
-    
+//  }
+//    
   // Output data to serial monitor
   Serial.print("Magnetic field in X Axis : ");
   Serial.println(xMag);
