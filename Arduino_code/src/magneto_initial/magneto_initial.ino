@@ -50,13 +50,15 @@ void loop()
   
   double dirang;
   // Convert the data
-  int xMag = ((data[1] * 256) + data[0]) - 467;
-  int yMag = ((data[3] * 256) + data[2]) + 834;
-  int zMag = ((data[5] * 256) + data[4]) - 1255 ;
-  long mag2=(xMag*xMag) + (yMag*yMag) + (zMag*zMag);
-  double mag=sqrt(mag2);
-  double temp=xMag/yMag;
- dirang= atan2(xMag,yMag) * 180/PI;
+  int xMag = ((data[1] * 256) + data[0]) ;
+  int yMag = ((data[3] * 256) + data[2]) ;
+  int zMag = ((data[5] * 256) + data[4])  ;
+  //long mag2=(xMag*xMag) + (yMag*yMag) + (zMag*zMag);
+  //double mag=sqrt(mag2);
+  //double temp=xMag/yMag;
+ dirang= atan2(yMag,xMag) * 180/3.14;
+// if(dirang<0)
+// dirang=dirang+360;
 //  if(yMag>0)
 //  {
 //    
@@ -91,7 +93,7 @@ void loop()
   Serial.print("Direction: ");
   Serial.println(dirang);
   Serial.print("Mag: ");
-  Serial.println(mag);
-  delay(1000);
+ // Serial.println(mag);
+ delay(1000);
 }
 
