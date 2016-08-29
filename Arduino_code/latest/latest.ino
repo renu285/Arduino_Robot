@@ -1,4 +1,5 @@
 #include "SimpleTimer.h"
+#include "PinChangeInt.h"
 #include<Wire.h>
 #include<math.h>
 #define maxlenpacket 263
@@ -15,13 +16,16 @@
 #define lengthp 0x05
 #define datap 0b11111
 // the timer object
+int call=0;
 SimpleTimer timer;
-int rotationsd=100;
-int command=0;
+int rotationsd=15;
+int command=11;
 int startTask=0;
 int endTask;
 double iniangle;
 double rotateAngle=90.00;
+int rotations=0;
+bool hall=true;
 unsigned long startTime;
 unsigned long timetask=1000;
 int speedv=255;
@@ -58,6 +62,7 @@ void parsepacket()
 
 // a function to be executed periodically
 void handleTasks() {
+  
   switch(command) {
     case 0: Serial.println("Doing nothing");
     break;
@@ -213,36 +218,53 @@ void handleTasks() {
     break;
 
     case 11: //move forward for a particular number of rotations
-    
-    if(isr_hall_return_rotations()< rotationsd)
+    if(hall==true)
     {
+      if(startTask==0)
+      {
+        startTask=1;
+        rotations=0;
+        call=1;
+      }
+      else if(startTask==1 && call==1)
+      {
+    if(rotations< rotationsd)
+    
+    {
+      
     analogWrite(3,speedv);
     analogWrite(5,0);
     analogWrite(6,speedv);
     analogWrite(9,0);
-    break;
+    
       
     }
-    else if(isr_hall_return_rotations()>= rotationsd){
-      isr_hall_stop();
+    else if(rotations>= rotationsd){
+       analogWrite(3,0);
+    analogWrite(5,0);
+    analogWrite(6,0);
+    analogWrite(9,0);
+      
+    }
+    }
     }
     break;
 
-    case 12: //move backward for a particular number of rotations
-    
-    if(isr_hall_return_rotations()< rotationsd)
-    {
-    analogWrite(3,0);
-    analogWrite(5,speedv);
-    analogWrite(6,0);
-    analogWrite(9,speedv);
-    break;
-      
-    }
-    else if(isr_hall_return_rotations()>= rotationsd){
-      isr_hall_stop();
-    }
-    break;
+//    case 12: //move backward for a particular number of rotations
+//    
+//    if(isr_hall_return_rotations()< rotationsd)
+//    {
+//    analogWrite(3,0);
+//    analogWrite(5,speedv);
+//    analogWrite(6,0);
+//    analogWrite(9,speedv);
+//    break;
+//      
+//    }
+//    else if(isr_hall_return_rotations()>= rotationsd){
+//      isr_hall_stop();
+//    }
+//    break;
 
     case 13:
     //just set the variable speedv to a particular value
@@ -255,28 +277,24 @@ void handleTasks() {
   }
   
 }
-int call=0;
-int rotations=0;
+
+
 int pin=A2;
-int isr_hall_stop()
-{
-  //call disable interrupt function here
-  call=0;
-  rotations=0;
-}
-int isr_hall_return_rotations()
+
+void hall_interrupt()
 {
   //call enable interrupt function here
-if(call==0)
+if(call==1)
 {
-  call=1;
-  rotations=0;
-  if(digitalRead(pin)==LOW)
-  {
+ 
+ 
     rotations++;
-  }
-  return rotations;
 }
+
+   else if(call==0)
+   {
+    rotations=0;
+   }
   
 }
 
@@ -287,6 +305,9 @@ void setup() {
     pinMode(5,OUTPUT);
     pinMode(6,OUTPUT);
     pinMode(9,OUTPUT);
+    pinMode(A1, INPUT);     //set the pin to input
+    digitalWrite(A1, HIGH); //use the internal pullup resistor
+    PCintPort::attachInterrupt(A1, hall_interrupt,FALLING);
     
     Wire.begin();//magnetometer initialization start
      Wire.beginTransmission(Addr);
@@ -299,12 +320,14 @@ void setup() {
    delay(300);//magnetometer initialization end
     
     timer.setInterval(10, handleTasks); //timer interval
-    
+    Serial.println("Init over");
     
 }
 
 void loop() {
+  //unsigned long st=millis();
     timer.run();
+    
  //   samplepacket();
  
 }

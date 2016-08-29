@@ -56,9 +56,9 @@ void loop()
   //long mag2=(xMag*xMag) + (yMag*yMag) + (zMag*zMag);
   //double mag=sqrt(mag2);
   //double temp=xMag/yMag;
- dirang= atan2(yMag,xMag) * 180/3.14;
- if(dirang<0)
- dirang=dirang+360;
+// dirang= atan2(yMag,xMag) * 180/3.14;
+// if(dirang<0)
+// dirang=dirang+360;
 // if(dirang<0)
 // dirang=dirang+360;
 //  if(yMag>0)
@@ -86,16 +86,19 @@ void loop()
 //  }
 //    
   // Output data to serial monitor
-  Serial.print("Magnetic field in X Axis : ");
-  Serial.println(xMag);
-  Serial.print("Magnetic field in Y Axis : ");
-  Serial.println(yMag);
-  Serial.print("Magnetic field in Z Axis : ");
-  Serial.println(zMag);
-  Serial.print("Direction: ");
-  Serial.println(dirang);
-  Serial.print("Mag: ");
- // Serial.println(mag);
- delay(1000);
+  //Serial.print("Magnetic field in X Axis : ");
+  Serial.print(xMag);
+  //Serial.print("Magnetic field in Y Axis : ");
+  Serial.print(",");
+  Serial.print(yMag);
+//  Serial.print("Magnetic field in Z Axis : ");
+   Serial.print(",");
+  Serial.print(zMag);
+  Serial.print("\n");
+  //Serial.print("Direction: ");
+//  Serial.println(dirang);
+//  Serial.print("Mag: ");
+// // Serial.println(mag);
+ delay(100);
 }
 
