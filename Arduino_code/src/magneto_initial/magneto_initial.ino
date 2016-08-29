@@ -57,6 +57,8 @@ void loop()
   //double mag=sqrt(mag2);
   //double temp=xMag/yMag;
  dirang= atan2(yMag,xMag) * 180/3.14;
+ if(dirang<0)
+ dirang=dirang+360;
 // if(dirang<0)
 // dirang=dirang+360;
 //  if(yMag>0)
