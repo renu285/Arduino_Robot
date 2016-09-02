@@ -50,9 +50,9 @@ void loop()
   
   double dirang;
   // Convert the data
-  int xMag = ((data[1] * 256) + data[0]) ;
-  int yMag = ((data[3] * 256) + data[2]) ;
-  int zMag = ((data[5] * 256) + data[4])  ;
+  int xMag = ((data[1] <<8) | data[0]) ;
+  int yMag = ((data[3] <<8) | data[2]) ;
+  int zMag = ((data[5] <<8) | data[4])  ;
   //long mag2=(xMag*xMag) + (yMag*yMag) + (zMag*zMag);
   //double mag=sqrt(mag2);
   //double temp=xMag/yMag;
