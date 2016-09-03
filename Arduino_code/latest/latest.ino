@@ -1,6 +1,7 @@
 #include "SimpleTimer.h"
 #include "PinChangeInt.h"
 #include "PacketSerial.h"
+#include "definitions.h"
 #include<Wire.h>
 #include<math.h>
 #include<EEPROM.h>
@@ -215,15 +216,15 @@ void create_packet(char dst, char lengt,char *data)
   char checksum;
   char *packet;
   packet=(char*)calloc(8 +lengt,sizeof(char));
-  packet[0]=0XFF;
+  packet[start_byte_location]=0XFF;
 //  Serial.println(packet[0],HEX);
-  packet[1]=src<<4 | dst ;
-  packet[2]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
-  packet[3]=0b000<<5|0b0<<4|0b0<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  packet[srcdst_location]=src<<4 | dst ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=0b000<<5|0b0<<4|0b0<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
   increment_counter();
-  packet[4]=ch;
-  packet[5]=cl;
-  packet[6]=lengt;
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[length_location]=lengt;
   for(l=0;l<lengt;l++)
   {
     packet[7+l]=*(data+l);
@@ -280,88 +281,24 @@ void handle_ic(char ic)
  * |111|Reserved
  *
  */
- char *data_reply;
- char *packet;
+ 
  switch(ic&&0b11100000)
 { 
   int l,i;
   char checksum;
   case 0x10:
-
-  data_reply=(char*)calloc(1,sizeof(char));
-  packet=(char*)calloc(8,sizeof(char));
-  *data_reply=0x00<<4|src;
-  packet[0]=0XFF;
-  packet[1]=src<<4 | 0x0 ;
-  packet[2]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
-  packet[3]=0b001<<5|0b0<<4|0b1<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
-  increment_counter();
-  packet[4]=ch;
-  packet[5]=cl;
-  packet[6]=0x01;
-  for(l=0;l<1;l++)
-  {
-    packet[7+l]=*(data_reply+l);
- 
-  }
-  checksum=packet[0];
-  for(i=1; i< (8) ; i++ )
-  {
-    checksum=checksum ^ packet[i];
-  }
-  packet[7]= checksum;
-  serial.send(packet, 9);
-  
-  free(data_reply);
-  free(packet);
+  make_return_ic(1);
+  break;
   
   case 0x20:
-  packet=(char*)calloc(7+sizeof(ssid),sizeof(char));
-  packet[0]=0XFF;
-  packet[1]=src<<4 | 0x0 ;
-  packet[2]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
-  packet[3]=0b001<<5|0b0<<4|0b1<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
-  increment_counter();
-  packet[4]=ch;
-  packet[5]=cl;
-  packet[6]=sizeof(ssid);
-  for(l=0;l<sizeof(ssid);l++)
-  {
-    packet[7+l]=*(ssid+l);
- 
-  }
-  checksum=packet[0];
-  for(i=1; i< 7+sizeof(ssid) ; i++ )
-  {
-    checksum=checksum ^ packet[i];
-  }
-  packet[7+sizeof(ssid)-1]= checksum;
-  serial.send(packet,7+sizeof(ssid) );
+  make_return_ic(2)
   break;
   
-  case 0x30:
-  packet=(char*)calloc(7+sizeof(ssid),sizeof(char));
-  packet[0]=0XFF;
-  packet[1]=src<<4 | 0x0 ;
-  packet[2]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
-  packet[3]=0b001<<5|0b0<<4|0b1<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
-  increment_counter();
-  packet[4]=ch;
-  packet[5]=cl;
-  packet[6]=sizeof(pwd);
-  for(l=0;l<sizeof(pwd);l++)
-  {
-    packet[7+l]=*(pwd+l);
- 
-  }
-  checksum=packet[0];
-  for(i=1; i< 7+sizeof(pwd) ; i++ )
-  {
-    checksum=checksum ^ packet[i];
-  }
-  packet[7+sizeof(pwd)-1]= checksum;
-  serial.send(packet,7+sizeof(pwd));
   break;
+  case 0x30:
+  make_return_ic(3);
+  break;
+  
 
 //  case 0x40: 
 //  srcdst=SRC<<4 | 0x00 ;
@@ -377,6 +314,100 @@ void handle_ic(char ic)
 //  case 0x70:
 //  break;  
 }
+}
+
+void make_return_ic(int icno)
+{
+  char *data_reply;
+ char *packet;
+
+ switch(icno)
+ {
+
+ case 1:
+  data_reply=(char*)calloc(1,sizeof(char));
+  packet=(char*)calloc(8,sizeof(char));
+  *data_reply=0x00<<4|src;
+  packet[start_byte_location]=0XFF;
+  packet[srcdst_location]=src<<4 | 0x0 ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=ic_1<<5|tcp<<4|ack<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  increment_counter();
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[length_location]=0x01;
+  for(l=0;l<1;l++)
+  {
+    packet[7+l]=*(data_reply+l);
+ 
+  }
+  checksum=packet[0];
+  for(i=1; i< (8) ; i++ )
+  {
+    checksum=checksum ^ packet[i];
+  }
+  packet[7]= checksum;
+  serial.send(packet, 9);
+  
+  free(data_reply);
+  free(packet);
+  break;
+
+  case 2:
+ data_reply=(char*)calloc(1,sizeof(char));
+  packet=(char*)calloc(8,sizeof(char));
+  *data_reply=0x00<<4|src;
+  packet[start_byte_location]=0XFF;
+  packet[srcdst_location]=src<<4 | 0x0 ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=ic_2<<5|tcp<<4|ack<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  increment_counter();
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[6]=sizeof(ssid);
+  for(l=0;l<sizeof(ssid);l++)
+  {
+    packet[7+l]=*(ssid+l);
+ 
+  }
+  checksum=packet[0];
+  for(i=1; i< 7+sizeof(ssid) ; i++ )
+  {
+    checksum=checksum ^ packet[i];
+  }
+  packet[7+sizeof(ssid)-1]= checksum;
+  serial.send(packet,7+sizeof(ssid) );
+  break;
+
+  case 3:
+ data_reply=(char*)calloc(1,sizeof(char));
+  packet=(char*)calloc(8,sizeof(char));
+  *data_reply=0x00<<4|src;
+  packet[start_byte_location]=0XFF;
+  packet[srcdst_location]=src<<4 | 0x0 ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=ic_3<<5|tcp<<4|ack<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  increment_counter();
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[6]=sizeof(pwd);
+  for(l=0;l<sizeof(pwd);l++)
+  {
+    packet[7+l]=*(pwd+l);
+ 
+  }
+  checksum=packet[0];
+  for(i=1; i< 7+sizeof(pwd) ; i++ )
+  {
+    checksum=checksum ^ packet[i];
+  }
+  packet[7+sizeof(pwd)-1]= checksum;
+  serial.send(packet,7+sizeof(pwd));
+  break;
+
+  
+ }
+  
 }
 
 void onPacket(const uint8_t* buffer, size_t size)
