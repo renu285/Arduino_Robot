@@ -287,16 +287,16 @@ void handle_ic(char ic)
   int l,i;
   char checksum;
   case 0x10:
-  make_return_ic(1);
+  reply_ic(1);
   break;
   
   case 0x20:
-  make_return_ic(2)
+  reply_ic(2);
   break;
   
   break;
   case 0x30:
-  make_return_ic(3);
+  reply_ic(3);
   break;
   
 
@@ -316,11 +316,12 @@ void handle_ic(char ic)
 }
 }
 
-void make_return_ic(int icno)
+void reply_ic(int icno)
 {
   char *data_reply;
  char *packet;
-
+ int i,j,l;
+char checksum;
  switch(icno)
  {
 
