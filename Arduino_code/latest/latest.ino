@@ -10,7 +10,7 @@
 PacketSerial serial;
 char ssid[]="ssid";
 char pwd[]="pwd";
-char ssid_pwd[]={'s','s','i','d','\n','p','w','d'};
+char ssid_pwd[]={'s','s','i','d',0xE2, 0x82, 0xAC,'p','w','d'};
 int COMMAND=6;
 int call1,call2;
 int distance;
