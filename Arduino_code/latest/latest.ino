@@ -10,7 +10,12 @@
 PacketSerial serial;
 char ssid[]="ssid";
 char pwd[]="pwd";
+char ssid_pwd[]={'s','s','i','d','\n','p','w','d'};
 int COMMAND=6;
+int call1,call2;
+int distance;
+int timetask;
+int rotateangle;
 
 /**********************************************************************************************************************************************************
 **********************************************************MAGNETOMETER FN*************************************************************************/
@@ -218,9 +223,9 @@ void create_packet(char dst, char lengt,char *data)
   packet=(char*)calloc(8 +lengt,sizeof(char));
   packet[start_byte_location]=0XFF;
 //  Serial.println(packet[0],HEX);
-  packet[srcdst_location]=src<<4 | dst ;
-  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
-  packet[ic_location]=0b000<<5|0b0<<4|0b0<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  packet[srcdst_location]= src<<4 | dst ;
+  packet[isc_location]= src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]= 0b000<<5|0b0<<4|0b0<<3|0b000; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
   increment_counter();
   packet[ch_location]=ch;
   packet[cl_location]=cl;
@@ -286,16 +291,16 @@ void handle_ic(char ic)
 { 
   int l,i;
   char checksum;
-  case 0x10:
+  case 0x20:
   reply_ic(1);
   break;
   
-  case 0x20:
+  case 0x40:
   reply_ic(2);
   break;
   
   break;
-  case 0x30:
+  case 0x60:
   reply_ic(3);
   break;
   
@@ -365,47 +370,20 @@ char checksum;
   increment_counter();
   packet[ch_location]=ch;
   packet[cl_location]=cl;
-  packet[6]=sizeof(ssid);
-  for(l=0;l<sizeof(ssid);l++)
+  packet[6]=sizeof(ssid_pwd);
+  for(l=0;l<sizeof(ssid_pwd);l++)
   {
-    packet[7+l]=*(ssid+l);
+    packet[7+l]=*(ssid_pwd+l);
  
   }
   checksum=packet[0];
-  for(i=1; i< 7+sizeof(ssid) ; i++ )
+  for(i=1; i< 7+sizeof(ssid_pwd) ; i++ )
   {
     checksum=checksum ^ packet[i];
   }
   packet[7+sizeof(ssid)-1]= checksum;
   serial.send(packet,7+sizeof(ssid) );
   break;
-
-  case 3:
- data_reply=(char*)calloc(1,sizeof(char));
-  packet=(char*)calloc(8,sizeof(char));
-  *data_reply=0x00<<4|src;
-  packet[start_byte_location]=0XFF;
-  packet[srcdst_location]=src<<4 | 0x0 ;
-  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
-  packet[ic_location]=ic_3<<5|tcp<<4|ack<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
-  increment_counter();
-  packet[ch_location]=ch;
-  packet[cl_location]=cl;
-  packet[6]=sizeof(pwd);
-  for(l=0;l<sizeof(pwd);l++)
-  {
-    packet[7+l]=*(pwd+l);
- 
-  }
-  checksum=packet[0];
-  for(i=1; i< 7+sizeof(pwd) ; i++ )
-  {
-    checksum=checksum ^ packet[i];
-  }
-  packet[7+sizeof(pwd)-1]= checksum;
-  serial.send(packet,7+sizeof(pwd));
-  break;
-
   
  }
   
@@ -414,21 +392,34 @@ char checksum;
 void onPacket(const uint8_t* buffer, size_t size)
 {
   int i;
-  char *temp_data;
-  temp_data=(char*)calloc(size,sizeof(char)); 
-  memcpy(buffer,temp_data,size);
-  char checksum=temp_data[0];
+  //serial.send(buffer,size);
+  //uint8_t* temp_data;
+  uint8_t temp_data[size]; 
+
+  // Copy the packet into our temporary buffer.
+  memcpy(temp_data, buffer, size); 
+
+//  char *temp_data=(char*)buffer;
+//  temp_data=(uint8_t*)calloc(size,sizeof(char*)); 
+//  memcpy(temp_data,buffer,size);
+  
+  uint8_t checksum=temp_data[0];
+  
   for(i=1; i< size-1 ; i++ )
   {
     checksum=checksum ^ temp_data[i];
   }
-  if(buffer[i-1]==checksum)
+  if(temp_data[size-1]==checksum)
   {
-    if(buffer[0]==0xFF && (buffer[1]&0x0F)==src && (buffer[3]&0b11100000!=0))
+    //Serial.print(temp_data[0],HEX);
+    serial.send(temp_data,size);
+    if((temp_data[0] == 0xff) && (temp_data[1]&0x0F)==src && (temp_data[3]&0b11100000!=0))
     {
+       
+          serial.send(temp_data,size); 
       handle_ic(temp_data[3]);
     }
-    else if(temp_data[0]==0xFF && (temp_data[1]&0x0F)==src && (temp_data[3]&0b11100000==0))
+    else if(temp_data[0]==0xFF && (temp_data[1]&0x0F)==src && (temp_data[3]&0b11100000==0x00))
     {
       parse_data(temp_data,size);
       
@@ -438,10 +429,91 @@ void onPacket(const uint8_t* buffer, size_t size)
   free(temp_data);
 }
 
-void parse_data(char *temp_data,int size)
+void parse_data(uint8_t* temp_data,int size)
 {
-  int len=size-8;
+  
+ 
+  uint8_t temp;
   COMMAND=*(temp_data+7);
+  if((COMMAND==0X02)||(COMMAND==0X04))
+  {
+    int i;
+    char lengt=0x00;
+    uint8_t temp_data_reply[8];
+    temp_data_reply[0]=temp_data[0];
+    uint8_t checksum;
+    timetask=*(temp_data+8);
+    temp=temp_data[1];
+    temp_data[1]=temp_data[1]>>4;
+    temp_data[1]=src|temp_data[1];
+    temp_data_reply[1]=temp_data[1];
+    temp_data_reply[2]=src<<4 |0b0000;
+    temp_data_reply[3]=temp_data[3]|ack<<3;
+    temp_data_reply[4]=temp_data[4];
+    temp_data_reply[5]=temp_data[5];
+    temp_data_reply[6]=lengt;
+    checksum=temp_data_reply[0];
+     for(i=1;i<8+lengt;i++)
+     {
+      checksum=checksum  ^ temp_data_reply[i]; 
+     }
+     serial.send(temp_data_reply,8);
+  
+  }
+  else if((COMMAND==0X05)||(COMMAND==0X06))
+  {
+    int i;
+    rotateangle=*(temp_data+8);
+    char lengt=0x00;
+    uint8_t temp_data_reply[8];
+    temp_data_reply[0]=temp_data[0];
+    uint8_t checksum;
+    timetask=*(temp_data+8);
+    temp=temp_data[1];
+    temp_data[1]=temp_data[1]>>4;
+    temp_data[1]=src|temp_data[1];
+    temp_data_reply[1]=temp_data[1];
+    temp_data_reply[2]=src<<4 |0b0000;
+    temp_data_reply[3]=temp_data[3]|ack<<3;
+    temp_data_reply[4]=temp_data[4];
+    temp_data_reply[5]=temp_data[5];
+    temp_data_reply[6]=lengt;
+    checksum=temp_data_reply[0];
+     for(i=1;i<8+lengt;i++)
+     {
+      checksum=checksum  ^ temp_data_reply[i]; 
+     }
+     serial.send(temp_data_reply,8);
+     free(temp_data_reply);
+  
+  }
+  else if((COMMAND==0X0B)||(COMMAND==0X0C))
+  {
+   distance=*(temp_data+8);
+   int i;
+    rotateangle=*(temp_data+8);
+    char lengt=0x00;
+    uint8_t temp_data_reply[8];
+    temp_data_reply[0]=temp_data[0];
+    uint8_t checksum;
+    timetask=*(temp_data+8);
+    temp=temp_data[1];
+    temp_data[1]=temp_data[1]>>4;
+    temp_data[1]=src|temp_data[1];
+    temp_data_reply[1]=temp_data[1];
+    temp_data_reply[2]=src<<4 |0b0000;
+    temp_data_reply[3]=temp_data[3]|ack<<3;
+    temp_data_reply[4]=temp_data[4];
+    temp_data_reply[5]=temp_data[5];
+    temp_data_reply[6]=lengt;
+    checksum=temp_data_reply[0];
+     for(i=1;i<8+lengt;i++)
+     {
+      checksum=checksum  ^ temp_data_reply[i]; 
+     }
+     serial.send(temp_data_reply,8);
+      free(temp_data_reply);
+  }
   
 }
   
@@ -454,15 +526,16 @@ void parse_data(char *temp_data,int size)
 
 int call=0;
 SimpleTimer timer;
-int rotationsd=15;
+int rotationsd;
 int startTask=0;
 int endTask;
-double iniangle;
-double rotateAngle=180;
-int rotations=0;
+int iniangle;
+
+int rotations_left=0;
+int rotations_right=0;
 bool hall=true;
 unsigned long startTime;
-unsigned long timetask=1000;
+
 int speedv=255;
 int smallestspeed=150;
 int i;
@@ -479,31 +552,23 @@ void handleTasks() {
   
   switch(COMMAND) {
     case 0: Serial.println("Doing nothing");
+    stop_loco();
     break;
     case 1: Serial.println("Move forward");
-    analogWrite(3,speedv);
-    analogWrite(5,0);
-    analogWrite(6,speedv);
-    analogWrite(9,0);
+    move_forward();
     break;
     case 2: //Move forward for a specific period of time
     if(startTask==0)
     {
       startTask=1;
       startTime=millis();
-    analogWrite(3,speedv);
-    analogWrite(5,0);
-    analogWrite(6,speedv);
-    analogWrite(9,0);
+    move_forward();
     }
     else if(startTask==1)
     {
       if(millis()-startTime>=timetask){
     Serial.println("Move forward for a specific period of time");
-    analogWrite(3,0);
-    analogWrite(5,0);
-    analogWrite(6,0);
-    analogWrite(9,0);
+    stop_loco();
     startTask=0;
     COMMAND=2;
       }
@@ -511,10 +576,7 @@ void handleTasks() {
     }
     break;
     case 3: //Move back
-    analogWrite(3,0);
-    analogWrite(5,speedv);
-    analogWrite(6,0);
-    analogWrite(9,speedv);
+    move_backward();
     break;
     
     case 4: //Move back for a specific period of time
@@ -522,22 +584,15 @@ void handleTasks() {
     {
       startTask=1;
       startTime=millis();
-    analogWrite(3,0);
-    analogWrite(5,speedv);
-    analogWrite(6,0);
-    analogWrite(9,speedv);
+    move_backward();
     }
     else if(startTask==1)
     {
       if(millis()-startTime>=timetask){
-    analogWrite(3,0);
-    analogWrite(5,0);
-    analogWrite(6,0);
-    analogWrite(9,0);
+    stop_loco();
     startTask=0;
     COMMAND=0;
       }
-    
     }
     break;
 /* for rotation in particular degree
@@ -582,7 +637,7 @@ void handleTasks() {
 //    break;
 //     for rotation in particular degree
         case 6 : 
-        Serial.println("Command 6");
+        //Serial.println("Command 6");
         if(startTask==0)
         {
          iniangle=returnangle();
@@ -591,25 +646,64 @@ void handleTasks() {
         }
         else if (startTask==1)
         {
-          if(iniangle-returnangle()>=rotateAngle)
+          if(iniangle>0 && iniangle<=180)
           {
-            
-            Serial.println("Stop");
-        digitalWrite(3,LOW);
-        digitalWrite(11,LOW);
-        digitalWrite(9,LOW);
-        digitalWrite(10,LOW);
-        endTask=1;
-        startTask=0;    
-        }
-        else if(iniangle-returnangle()<rotateAngle)
-        {
-           Serial.println(iniangle-returnangle());
-          Serial.println("ROTATE");
-        digitalWrite(3,LOW);
-        digitalWrite(11,LOW);
-        digitalWrite(9,HIGH);
-         digitalWrite(10,LOW);
+              if(returnangle()-iniangle>=rotateangle)
+              {
+                stop_loco();
+              }
+              else if(returnangle()-iniangle < rotateangle)
+              {
+                move_left();
+              }
+         
+          }
+          if(iniangle>180 && iniangle<=270)
+          {
+              if(returnangle()-iniangle>=rotateangle)
+              {
+                stop_loco();
+              }
+              else if(returnangle()-iniangle < rotateangle)
+              {
+                move_left();
+              }
+         
+          }
+          if(iniangle>270 && iniangle<=360)
+          {
+            if(rotateangle<90)
+            {
+              if(returnangle()-iniangle>=rotateangle)
+              {
+                stop_loco();
+              }
+              else if(returnangle()-iniangle < rotateangle)
+              {
+                move_left();
+              }
+            }
+            if(rotateangle>90 && rotateangle<=180)
+            {
+             if(returnangle()>270 && returnangle()<=360)
+              {
+                move_left();
+              }
+
+              else if(returnangle()>0 && returnangle()<=150)
+              {
+                  if(returnangle()+360 - iniangle>rotateangle)
+                  {
+                    stop_loco();
+                  }
+                  else
+                  {
+                    move_left();
+                  }
+              }
+              
+              
+            }
           }
       }
     break;
@@ -639,34 +733,37 @@ void handleTasks() {
     break;
 
     case 11: //move forward for a particular number of rotations
+//    Serial.println("c11");
     if(hall==true)
     {
       if(startTask==0)
       {
         startTask=1;
-        rotations=0;
-        call=1;
+        rotations_left=0;
+        rotations_right=0;
+        rotationsd=distance/(3.14*6.5);
+       
+        call1=1;
+        call2=1;
       }
-      else if(startTask==1 && call==1)
+      else if(startTask==1 && call1==1 && call2==1)
       {
-    if(rotations< rotationsd)
+    if(rotations_left< rotationsd && rotations_right< rotationsd )
     
     {
-      
-    analogWrite(3,speedv);
-    analogWrite(11,0);
-    analogWrite(9,speedv);
-    analogWrite(10,0);
+    Serial.println("exec");  
+    move_forward();
     
       
     }
-    else if(rotations>= rotationsd){
-       analogWrite(3,0);
-    analogWrite(5,0);
-    analogWrite(6,0);
-    analogWrite(9,0);
-      
+    else if(rotations_left>= rotationsd || rotations_right>= rotationsd){
+     stop_loco();
+     call1=0;
+     call2=0;
+     COMMAND=0;
+    //Serial.println("Task comp"); 
     }
+   
     }
     }
     break;
@@ -699,26 +796,97 @@ void handleTasks() {
   
 }
 
+/*LOCOMOTION
+ * fn
+ * 
+ * 
+ * 
+ */
 
-int pin=A2;
-
-void hall_interrupt()
+void move_forward()
 {
-  //call enable interrupt function here
-if(call==1)
+  digitalWrite(3,LOW);
+  digitalWrite(11,HIGH);
+  digitalWrite(9,HIGH);
+  digitalWrite(10,LOW);
+}
+void move_backward()
 {
- 
- 
-    rotations++;
+  digitalWrite(3,HIGH);
+  digitalWrite(11,LOW);
+  digitalWrite(9,LOW);
+  digitalWrite(10,HIGH);
 }
 
-   else if(call==0)
+void stop_loco()
+{
+  digitalWrite(3,LOW);
+  digitalWrite(11,LOW);
+  digitalWrite(9,LOW);
+  digitalWrite(10,LOW);
+}
+
+void move_left()
+{
+  digitalWrite(3,LOW);
+  digitalWrite(11,HIGH);
+  digitalWrite(9,LOW);
+  digitalWrite(10,LOW);
+}
+
+void move_right()
+{
+   digitalWrite(9,HIGH);
+  digitalWrite(10,LOW);
+  digitalWrite(3,LOW);
+  digitalWrite(11,LOW);
+  
+}
+void hall_interrupt()
+
+{
+  //call enable interrupt function here
+
+if(call2==1)
+{
+ 
+ 
+    rotations_right++;
+}
+
+   else if(call1==0)
    {
-    rotations=0;
+    rotations_right=0;
    }
   
 }
 
+void hall_interrupt_2()
+{
+  //call enable interrupt function here
+
+if(call2==1)
+{
+ 
+ 
+    rotations_left++;
+}
+
+   else if(call2==0)
+   {
+    rotations_left=0;
+   }
+  
+}
+
+
+
+/*LOCOMOTION
+ * fn
+ * 
+ * 
+ * 
+ */
 
 void setup() {
     //Serial.begin(9600);
@@ -729,28 +897,30 @@ void setup() {
     pinMode(A1, INPUT);     //set the pin to input
     digitalWrite(A1, HIGH); //use the internal pullup resistor
     PCintPort::attachInterrupt(A1, hall_interrupt,FALLING);
-    Serial.begin(115200);
+    pinMode(A2, INPUT);     //set the pin to input
+    digitalWrite(A2, HIGH); //use the internal pullup resistor
+    PCintPort::attachInterrupt(A2, hall_interrupt_2,FALLING);
+     Serial.begin(115200);
     
     Wire.begin();//magnetometer initialization start
     mag_config(); 
-    //serial.setPacketHandler(&onPacket);
+    serial.setPacketHandler(&onPacket);
     serial.begin(115200);
-    char data[]="\x05\x03";
-    create_packet(0x02,0x02,data);
+    //char data[]="\x05\x03\x07";
+    //create_packet(0x03,0x03,data);
     //serial.send(0x01,1);
     timer.setInterval(10, handleTasks); //timer interval
-    Serial.println("Init over");
-    Serial.println(returnangle());
+    
+//    Serial.println("Init over");
+//    Serial.println(returnangle());
     
 }
 
 void loop() {
   //unsigned long st=millis();
   timer.run();
+  serial.update();
   
-  //Serial.println(millis()-st);
-    
- //   samplepacket();
  
 }
 
