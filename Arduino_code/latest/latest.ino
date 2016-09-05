@@ -6,13 +6,13 @@
 #include<EEPROM.h>
 #define maxlenpacket 263
 #define MAG_ADDR  0x0E 
-#define __DEBUG_ 1
+//#define __DEBUG_ 1
 int timer_count=0;
 PacketSerial serial;
 char ssid[]="ssid";
 char pwd[]="pwd";
 char ssid_pwd[]={'r','e','n','s','_','w','i','f','i',0xA9,'1','2','3','4','5','6','7','8'};
-int COMMAND;
+int COMMAND=0x00;
 int call1,call2;
 int distance=500;
 int timetask;
@@ -518,6 +518,7 @@ void send_rssi_ic()
 void onPacket(const uint8_t* buffer, size_t size)
 {
   int i;
+  Serial.println("pack received");
   //serial.send(buffer,size);
   //uint8_t* temp_data;
   uint8_t temp_data[size]; 
@@ -542,12 +543,13 @@ void onPacket(const uint8_t* buffer, size_t size)
 //    Serial.println(temp_data[3]&0xE0,HEX);
     if((temp_data[0] == 0xff) && ((temp_data[3]&0xE0) != 0x00))
     {
-       
+       Serial.println("ic received");
           //serial.send(temp_data,size); 
       handle_ic(temp_data[3]);
     }
     else if(temp_data[0]==0xFF && ((temp_data[3]&0b11100000)==0x00))
     {
+      Serial.println("ec received");
 //      if(*(temp_data+7)==0x01)
 //      {
         //serial.send(temp_data,size);
@@ -842,7 +844,7 @@ void parse_data(uint8_t* temp_data,int size)
         temp_data_reply[4]=temp_data[4];
         temp_data_reply[5]=temp_data[5];
         temp_data_reply[6]=0x01;
-        temp_data_reply[7]=src;
+        temp_data_reply[7]=0x01;
         checksum=temp_data_reply[0];
         for(i=1;i<8;i++)
         {
@@ -900,7 +902,7 @@ SIGNAL(TIMER0_COMPA_vect) {
     //Serial.println("interrupt received");
     timer_count=0;
   switch(COMMAND) {
-    case 0: //Serial.println("Doing nothing");
+    case 0:// Serial.println("Doing nothing");
     stop_loco();
     break;
     case 1: //Serial.println("Move forward");
@@ -1404,7 +1406,7 @@ void setup() {
      Serial.print("Init done");
      #endif
   TIMSK0 |= _BV(OCIE0A);
-  interrupts(); 
+  //interrupts(); 
     //char data[]="\x05\x03\x07";
     //create_packet(0x03,0x03,data);
     //serial.send(0x01,1);
