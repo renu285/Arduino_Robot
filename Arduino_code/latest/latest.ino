@@ -1,4 +1,3 @@
-#include "SimpleTimer.h"
 #include "PinChangeInt.h"
 #include "PacketSerial.h"
 #include "definitions.h"
@@ -7,16 +6,22 @@
 #include<EEPROM.h>
 #define maxlenpacket 263
 #define MAG_ADDR  0x0E 
+#define __DEBUG_ 1
+int timer_count=0;
 PacketSerial serial;
 char ssid[]="ssid";
 char pwd[]="pwd";
-char ssid_pwd[]={'s','s','i','d',0xE2, 0x82, 0xAC,'p','w','d'};
-int COMMAND=6;
+char ssid_pwd[]={'r','e','n','s','_','w','i','f','i',0xA9,'1','2','3','4','5','6','7','8'};
+int COMMAND;
 int call1,call2;
-int distance;
+int distance=500;
 int timetask;
-int rotateangle;
-
+int rotateangle=45;
+long rssi;
+int startTask=0;
+double mag_x_scale= 1.0/(-171 + 580); //offset scale factor: 1.0/(max_x - min_x)
+ double mag_y_scale= 1.0/(716-318);    //offset scale factor: 1.0/(max_y - min_y)
+    
 /**********************************************************************************************************************************************************
 **********************************************************MAGNETOMETER FN*************************************************************************/
 
@@ -137,13 +142,36 @@ int readz(void)
   return zout;
 }
 
-double returnangle()
+int returnangle()
 {
-   double dirang= atan2(readx(),ready()) * 180/3.14;
-  if(dirang<0)
-  dirang=dirang+360;
-  return dirang; 
-
+//   double dirang= atan2(readx(),ready()) * 180/3.14;
+//  if(dirang<0)
+//  dirang=dirang+360;
+//  return dirang; 
+    int x=readx();//+447;
+    int y=ready();//-640;
+    float heading;
+//  if ((x == 0)&&(y < 0))  
+//    heading= PI/2.0; 
+//     
+//  if ((x == 0)&&(y > 0))  
+//    heading=3.0*PI/2.0; 
+//     
+//  if (x < 0)  
+//    heading = PI - atan(y/x);  
+//    
+//  if ((x > 0)&&(y < 0))  
+//    heading = -atan(y/x);
+//    
+//  if ((x > 0)&&(y > 0))  
+//   heading = 2.0*PI - atan(y/x); 
+    #ifdef __DEBUG
+  Serial.print("angle=");  
+    #endif 
+   double dirang=atan2((ready()-517)*mag_y_scale,(readx()+376)*mag_x_scale) * 180/3.14;
+    if(dirang<0)
+    dirang=dirang+360;
+    return dirang;
 }
 
 /**********************************************************************************************************************************************************
@@ -287,7 +315,7 @@ void handle_ic(char ic)
  *
  */
  
- switch(ic&&0b11100000)
+ switch(ic&0b11100000)
 { 
   int l,i;
   char checksum;
@@ -303,7 +331,13 @@ void handle_ic(char ic)
   case 0x60:
   reply_ic(3);
   break;
-  
+  case 0x80:
+  reply_ic(4);
+  break;
+
+  case 0xA0:
+  reply_ic(5);
+  break;
 
 //  case 0x40: 
 //  srcdst=SRC<<4 | 0x00 ;
@@ -332,7 +366,7 @@ char checksum;
 
  case 1:
   data_reply=(char*)calloc(1,sizeof(char));
-  packet=(char*)calloc(8,sizeof(char));
+  packet=(char*)calloc(9,sizeof(char));
   *data_reply=0x00<<4|src;
   packet[start_byte_location]=0XFF;
   packet[srcdst_location]=src<<4 | 0x0 ;
@@ -348,20 +382,29 @@ char checksum;
  
   }
   checksum=packet[0];
-  for(i=1; i< (8) ; i++ )
+  for(i=1; i< (9) ; i++ )
   {
     checksum=checksum ^ packet[i];
   }
-  packet[7]= checksum;
+  packet[8]= checksum;
   serial.send(packet, 9);
   
   free(data_reply);
   free(packet);
   break;
 
+  /*
+   * 0-nothing
+   * 1-id
+   * 2-wifi sssid
+   * 3-matrix
+   * 4-rssi
+   * 5-server_ip
+   */
+
   case 2:
  data_reply=(char*)calloc(1,sizeof(char));
-  packet=(char*)calloc(8,sizeof(char));
+  packet=(char*)calloc(sizeof(ssid_pwd)+8,sizeof(char));
   *data_reply=0x00<<4|src;
   packet[start_byte_location]=0XFF;
   packet[srcdst_location]=src<<4 | 0x0 ;
@@ -371,22 +414,105 @@ char checksum;
   packet[ch_location]=ch;
   packet[cl_location]=cl;
   packet[6]=sizeof(ssid_pwd);
-  for(l=0;l<sizeof(ssid_pwd);l++)
+  for(l=0; l<sizeof(ssid_pwd); l++)
   {
-    packet[7+l]=*(ssid_pwd+l);
+    packet[7+l]=ssid_pwd[l];
  
   }
   checksum=packet[0];
-  for(i=1; i< 7+sizeof(ssid_pwd) ; i++ )
+  for(i=1; i< 8+sizeof(ssid_pwd) ; i++ )
   {
     checksum=checksum ^ packet[i];
   }
-  packet[7+sizeof(ssid)-1]= checksum;
-  serial.send(packet,7+sizeof(ssid) );
+  packet[8+sizeof(ssid_pwd)-1]= checksum;
+  //Serial.println(8+sizeof(ssid));
+  serial.send(packet,8+sizeof(ssid_pwd));
+  free(data_reply);
+  free(packet);
+  break;
+
+  case 3:
+  packet=(char*)calloc(8+MATRIX_DIM,sizeof(char));
+  packet[start_byte_location]=0XFF;
+  packet[srcdst_location]=src<<4 | 0x0 ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=ic_3<<5|tcp<<4|ack<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  increment_counter();
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[6]=MATRIX_DIM;
+  for(l=0; l<MATRIX_DIM; l++)
+  {
+    packet[7+l]=matrix[src][l];
+ 
+  }
+  checksum=packet[0];
+  for(i=1; i< 8+MATRIX_DIM ; i++ )
+  {
+    checksum=checksum ^ packet[i];
+  }
+  packet[8+MATRIX_DIM-1]= checksum;
+  serial.send(packet,8+MATRIX_DIM);
+  free(packet);
   break;
   
+  case 5:
+  packet=(char*)calloc(8+4,sizeof(char));
+  packet[start_byte_location]=0XFF;
+  packet[srcdst_location]=src<<4 | 0x0 ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=ic_5<<5|tcp<<4|ack<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  increment_counter();
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[6]=4;
+  packet[7]=192;
+  packet[8]=168;
+  packet[9]=43;
+  packet[10]=193;
+  checksum=packet[0];
+  for(i=1; i< 12 ; i++ )
+  {
+    checksum=checksum ^ packet[i];
+  }
+  packet[11]= checksum;
+  serial.send(packet,12);
+  free(packet);
+  break;
+  case 4:
+ rssi=(packet[7]<<24) | (packet[8]<<16) | (packet[9]<<8) | (packet[10]<<8);
+ break;
  }
+ 
+ 
+ 
   
+  
+}
+
+
+void send_rssi_ic()
+{
+  int i;
+  char *packet;
+  char checksum;
+  packet=(char*)calloc(8,sizeof(char));
+  packet[start_byte_location]=0XFF;
+  packet[srcdst_location]=src<<4 | 0x0 ;
+  packet[isc_location]=src<<4 | 000 ; //char isc=SRC<<4 | res1 ;
+  packet[ic_location]=ic_4<<5|tcp<<4|fwd<<3|res2; //char ic= ic1<<5 | tcp<<4 | fw<<3 | res2 ;/*ic1 0b001tcp 0b0 fw 0b0 res2 0b000 
+  increment_counter();
+  packet[ch_location]=ch;
+  packet[cl_location]=cl;
+  packet[6]=0x00;
+  checksum=packet[0];
+  for(i=1;i<7;i++)
+  {
+    checksum=checksum^packet[i];
+  }
+  packet[7]=checksum;
+  serial.send(packet,8);
+  free(packet); 
 }
 
 void onPacket(const uint8_t* buffer, size_t size)
@@ -412,15 +538,20 @@ void onPacket(const uint8_t* buffer, size_t size)
   if(temp_data[size-1]==checksum)
   {
     //Serial.print(temp_data[0],HEX);
-    serial.send(temp_data,size);
-    if((temp_data[0] == 0xff) && (temp_data[1]&0x0F)==src && (temp_data[3]&0b11100000!=0))
+    //serial.send(temp_data,size);
+//    Serial.println(temp_data[3]&0xE0,HEX);
+    if((temp_data[0] == 0xff) && ((temp_data[3]&0xE0) != 0x00))
     {
        
-          serial.send(temp_data,size); 
+          //serial.send(temp_data,size); 
       handle_ic(temp_data[3]);
     }
-    else if(temp_data[0]==0xFF && (temp_data[1]&0x0F)==src && (temp_data[3]&0b11100000==0x00))
+    else if(temp_data[0]==0xFF && ((temp_data[3]&0b11100000)==0x00))
     {
+//      if(*(temp_data+7)==0x01)
+//      {
+        //serial.send(temp_data,size);
+//      }
       parse_data(temp_data,size);
       
     }
@@ -435,14 +566,35 @@ void parse_data(uint8_t* temp_data,int size)
  
   uint8_t temp;
   COMMAND=*(temp_data+7);
+  if(COMMAND==0x01)
+  {
+    digitalWrite(13,HIGH);
+    delay(100);
+    digitalWrite(13,LOW);
+  }
+  if(COMMAND==0x02)
+  {
+    digitalWrite(13,HIGH);
+    delay(100);
+    digitalWrite(13,LOW);
+    delay(100);
+    digitalWrite(13,HIGH);
+     delay(100);
+     digitalWrite(13,LOW);
+  }
+  if(startTask==1)
+  {
+    startTask=0;
+  }
   if((COMMAND==0X02)||(COMMAND==0X04))
   {
     int i;
     char lengt=0x00;
-    uint8_t temp_data_reply[8];
+    char temp_data_reply[8];
     temp_data_reply[0]=temp_data[0];
     uint8_t checksum;
-    timetask=*(temp_data+8);
+    timetask=temp_data[8] * 1000;
+    //Serial.println(timetask);
     temp=temp_data[1];
     temp_data[1]=temp_data[1]>>4;
     temp_data[1]=src|temp_data[1];
@@ -457,7 +609,9 @@ void parse_data(uint8_t* temp_data,int size)
      {
       checksum=checksum  ^ temp_data_reply[i]; 
      }
+     temp_data_reply[7]=checksum;
      serial.send(temp_data_reply,8);
+     free(temp_data_reply);
   
   }
   else if((COMMAND==0X05)||(COMMAND==0X06))
@@ -511,11 +665,197 @@ void parse_data(uint8_t* temp_data,int size)
      {
       checksum=checksum  ^ temp_data_reply[i]; 
      }
+     temp_data_reply[7]=checksum;
      serial.send(temp_data_reply,8);
       free(temp_data_reply);
   }
+  else if((COMMAND==0x08 || COMMAND==0x09 || COMMAND==0x0A))
+  {
+      if(COMMAND==0X08)
+      {
+        int i;
+        char checksum;
+        uint8_t temp_data_reply[9];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x01;
+        temp_data_reply[7]=returndfront();
+        checksum=temp_data_reply[0];
+        for(i=1;i<9;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[8]=checksum;
+        serial.send(temp_data_reply,9);
+        free(temp_data_reply);
+        
+      }
+      else if(COMMAND==0X09)
+      {
+        int i;
+        char checksum;
+        uint8_t temp_data_reply[9];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x01;
+        temp_data_reply[7]=returndleft();
+        checksum=temp_data_reply[0];
+        for(i=1;i<9;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[8]=checksum;
+        serial.send(temp_data_reply,9);
+        free(temp_data_reply);
+      }
+      
+      else if(COMMAND==0X0A)
+      {
+        int i;
+        char checksum;
+        uint8_t temp_data_reply[9];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x01;
+        temp_data_reply[7]=returndleft();
+        checksum=temp_data_reply[0];
+        for(i=1;i<9;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[8]=checksum;
+        serial.send(temp_data_reply,9);
+        free(temp_data_reply);
+      }
+  }
+
+       else if(COMMAND==0X10) //set id
+      {
+        int i;
+        char checksum;
+        set_id(temp_data[8]);
+        uint8_t temp_data_reply[8];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x00;
+        checksum=temp_data_reply[0];
+        for(i=1;i<7;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[7]=checksum;
+        serial.send(temp_data_reply,8);
+        free(temp_data_reply);
+      }
+       else if(COMMAND==0X0E) //rssi
+      {
+        int i;
+        send_rssi_ic();
+        char checksum;
+        set_id(temp_data[12]);
+        uint8_t temp_data_reply[8];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x00;
+        temp_data_reply[7]= (rssi >>  24) & 0xFF;
+        temp_data_reply[8]= (rssi >>  16) & 0xFF;
+        temp_data_reply[9]= (rssi >>  8) & 0xFF;
+        temp_data_reply[10]= (rssi ) & 0xFF;
+        checksum=temp_data_reply[0];
+        for(i=1;i<11;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[11]=checksum;
+        serial.send(temp_data_reply,12);
+        free(temp_data_reply);
+      }
+
+        else if(COMMAND==0X0D) //send angle
+      {
+        int i;
+        char checksum;
+        set_id(temp_data[9]);
+        uint8_t temp_data_reply[9];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x01;
+        temp_data_reply[7]=returnangle();
+        checksum=temp_data_reply[0];
+        for(i=1;i<7;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[8]=checksum;
+        serial.send(temp_data_reply,9);
+        free(temp_data_reply);
+      }
+
+       else if(COMMAND==0X0F) //get id
+      {
+        int i;
+        char checksum;
+        //set_id(temp_data[8]);
+        uint8_t temp_data_reply[9];
+        temp=temp_data[1];
+        temp_data[1]=temp_data[1]>>4;
+        temp_data[1]=src|temp_data[1];
+        temp_data_reply[1]=temp_data[1];
+        temp_data_reply[2]=src<<4 |0b0000;
+        temp_data_reply[3]=temp_data[3]|ack<<3;
+        temp_data_reply[4]=temp_data[4];
+        temp_data_reply[5]=temp_data[5];
+        temp_data_reply[6]=0x01;
+        temp_data_reply[7]=src;
+        checksum=temp_data_reply[0];
+        for(i=1;i<8;i++)
+        {
+          checksum=checksum ^ temp_data_reply[i]; 
+        }
+        temp_data_reply[8]=checksum;
+        serial.send(temp_data_reply,9);
+        free(temp_data_reply);
+      }
+     
+  }
   
-}
+
   
   
 
@@ -525,9 +865,9 @@ void parse_data(uint8_t* temp_data,int size)
  */
 
 int call=0;
-SimpleTimer timer;
+//SimpleTimer timer;
 int rotationsd;
-int startTask=0;
+
 int endTask;
 int iniangle;
 
@@ -546,15 +886,24 @@ void parsepacket()
 
   
 }
+unsigned long ptime;
 
 // a function to be executed periodically
-void handleTasks() {
-  
+SIGNAL(TIMER0_COMPA_vect) {
+
+  sei();
+  timer_count++;
+  //Serial.println(timer_count);
+  if(timer_count >= 20)
+  {
+    
+    //Serial.println("interrupt received");
+    timer_count=0;
   switch(COMMAND) {
-    case 0: Serial.println("Doing nothing");
+    case 0: //Serial.println("Doing nothing");
     stop_loco();
     break;
-    case 1: Serial.println("Move forward");
+    case 1: //Serial.println("Move forward");
     move_forward();
     break;
     case 2: //Move forward for a specific period of time
@@ -567,10 +916,10 @@ void handleTasks() {
     else if(startTask==1)
     {
       if(millis()-startTime>=timetask){
-    Serial.println("Move forward for a specific period of time");
+    //Serial.println("Move forward for a specific period of time");
     stop_loco();
     startTask=0;
-    COMMAND=2;
+    COMMAND=0;
       }
     
     }
@@ -595,8 +944,93 @@ void handleTasks() {
       }
     }
     break;
-/* for rotation in particular degree
-//    case 5 : 
+//for rotation in particular degree
+    case 5 : 
+    //Serial.println("Fn5 exec");
+    if(startTask==0)
+        {
+          //Serial.println("start task=0");
+         iniangle=returnangle();
+         //Serial.println(iniangle);
+         startTask=1;
+        }
+        else if (startTask==1)
+        {
+          
+          if(iniangle>0 && iniangle<=180)
+          {
+            
+              if((returnangle()-iniangle)>=abs(rotateangle))
+              {
+                #ifdef __DEBUG
+                Serial.println("start task=1");
+                Serial.println(returnangle());
+                #endif
+                stop_loco();
+                COMMAND=0;
+                startTask=0;
+              }
+              else if(returnangle()-iniangle < abs(rotateangle))
+              {
+                move_right();
+              }
+         
+          }
+          if(iniangle>180 && iniangle<=270)
+          {
+              if(returnangle()-iniangle>=abs(rotateangle))
+              {
+                stop_loco();
+                COMMAND=0;
+                startTask=0;
+              }
+              else if((returnangle()-iniangle) < abs(rotateangle))
+              {
+                move_right();
+              }
+         
+          }
+          if(iniangle>270 && iniangle<=360)
+          {
+            if(rotateangle<90)
+            {
+              if(returnangle()-iniangle>=abs(rotateangle))
+              {
+                stop_loco();
+                COMMAND=0;
+                startTask=0;
+              }
+              else if((returnangle()-iniangle) < abs(rotateangle))
+              {
+                move_right();
+              }
+            }
+            if(rotateangle>90 && rotateangle<=180)
+            {
+             if(returnangle()>270 && returnangle()<=360)
+              {
+                move_right();
+              }
+
+              else if(returnangle()>0 && returnangle()<=150)
+              {
+                  if(returnangle()+360 - iniangle>rotateangle)
+                  {
+                    stop_loco();
+                    COMMAND=0;
+                    startTask=0;
+                  }
+                  else
+                  {
+                    move_right();
+                  }
+              }
+              
+              
+            }
+          }
+      }
+    break;
 //    if(startTask==0)
 //    {
 //     iniangle=returnangle();
@@ -621,13 +1055,13 @@ void handleTasks() {
 //      }
 //    }
 //    break;
-*/
-    case 5://rotate left
-    analogWrite(3,speedv);
-    analogWrite(11,0);
-    analogWrite(9,0);
-    analogWrite(10,0);
-    break;
+
+//    case 5://rotate left
+//    analogWrite(3,speedv);
+//    analogWrite(11,0);
+//    analogWrite(9,0);
+//    analogWrite(10,0);
+//    break;
 
 //    case 6: //rotate right
 //    analogWrite(3,0);
@@ -641,18 +1075,21 @@ void handleTasks() {
         if(startTask==0)
         {
          iniangle=returnangle();
+         #ifdef __DEBUG
          Serial.println(iniangle);
+         #endif
          startTask=1;
         }
         else if (startTask==1)
         {
           if(iniangle>0 && iniangle<=180)
           {
-              if(returnangle()-iniangle>=rotateangle)
+              if(returnangle()-iniangle>=abs(rotateangle))
               {
                 stop_loco();
+                COMMAND=0;
               }
-              else if(returnangle()-iniangle < rotateangle)
+              else if(returnangle()-iniangle < abs(rotateangle))
               {
                 move_left();
               }
@@ -660,11 +1097,13 @@ void handleTasks() {
           }
           if(iniangle>180 && iniangle<=270)
           {
-              if(returnangle()-iniangle>=rotateangle)
+              if(returnangle()-iniangle>=abs(rotateangle))
               {
                 stop_loco();
+                COMMAND=0;
+                startTask=0;
               }
-              else if(returnangle()-iniangle < rotateangle)
+              else if(returnangle()-iniangle < abs(rotateangle))
               {
                 move_left();
               }
@@ -674,11 +1113,13 @@ void handleTasks() {
           {
             if(rotateangle<90)
             {
-              if(returnangle()-iniangle>=rotateangle)
+              if(returnangle()-iniangle>=abs(rotateangle))
               {
                 stop_loco();
+                COMMAND=0;
+                startTask=0;
               }
-              else if(returnangle()-iniangle < rotateangle)
+              else if(returnangle()-iniangle < abs(rotateangle))
               {
                 move_left();
               }
@@ -695,6 +1136,8 @@ void handleTasks() {
                   if(returnangle()+360 - iniangle>rotateangle)
                   {
                     stop_loco();
+                    COMMAND=0;
+                    startTask=0;
                   }
                   else
                   {
@@ -711,25 +1154,22 @@ void handleTasks() {
 
     
     case 7://stop
-    analogWrite(3,0);
-    analogWrite(5,0);
-    analogWrite(6,0);
-    analogWrite(9,0);
+    stop_loco();
     break;
 
     case 8://ultrasonic sensor1
-    returndfront();
-    Serial.println("ultrasonic val1");
+   // u1=returndfront();
+    
     break;
 
     case 9://ultrasonic sensor2
-    returndleft();
-    Serial.println("ultrasonic val2");
+//    u2=returndleft();
+//    Serial.println("ultrasonic val2");
     break;
 
     case 10://ultrasonic sensor 3
-    returndright();
-    Serial.println("ultrasonic val3");
+//    u3=returndright();
+//    Serial.println("ultrasonic val3");
     break;
 
     case 11: //move forward for a particular number of rotations
@@ -751,7 +1191,7 @@ void handleTasks() {
     if(rotations_left< rotationsd && rotations_right< rotationsd )
     
     {
-    Serial.println("exec");  
+    //Serial.println("exec");  
     move_forward();
     
       
@@ -767,6 +1207,43 @@ void handleTasks() {
     }
     }
     break;
+
+    case 12: //move forward for a particular number of rotations
+//    Serial.println("c11");
+    if(hall==true)
+    {
+      if(startTask==0)
+      {
+        startTask=1;
+        rotations_left=0;
+        rotations_right=0;
+        rotationsd=distance/(3.14*6.5);
+       
+        call1=1;
+        call2=1;
+      }
+      else if(startTask==1 && call1==1 && call2==1)
+      {
+    if(rotations_left< rotationsd && rotations_right< rotationsd )
+    
+    {
+    //Serial.println("exec");  
+    move_backward();
+    
+      
+    }
+    else if(rotations_left>= rotationsd || rotations_right>= rotationsd){
+     stop_loco();
+     call1=0;
+     call2=0;
+     COMMAND=0;
+    //Serial.println("Task comp"); 
+    }
+   
+    }
+    }
+    break;
+
 
 //    case 12: //move backward for a particular number of rotations
 //    
@@ -785,7 +1262,7 @@ void handleTasks() {
 //    break;
 
     case 13:
-    //just set the variable speedv to a particular value
+    
     break;
 
     case 14:
@@ -793,6 +1270,9 @@ void handleTasks() {
     break;
     
   }
+  }
+
+  
   
 }
 
@@ -900,16 +1380,36 @@ void setup() {
     pinMode(A2, INPUT);     //set the pin to input
     digitalWrite(A2, HIGH); //use the internal pullup resistor
     PCintPort::attachInterrupt(A2, hall_interrupt_2,FALLING);
-     Serial.begin(115200);
-    
+    Serial.begin(9600);
+ 
     Wire.begin();//magnetometer initialization start
-    mag_config(); 
+    //mag_config(); 
     serial.setPacketHandler(&onPacket);
-    serial.begin(115200);
+    serial.begin(9600);
+    serial.send(0x00,5);
+    delay(1000);
+    reply_ic(1);
+    delay(1000);
+    reply_ic(3);
+     delay(1000);
+    reply_ic(5);
+     delay(1000);
+    reply_ic(2);
+    delay(1000);
+    delay(1000);
+    reply_ic(3);
+    delay(1000);
+     OCR0A = 0xAF;
+     #ifdef __DEBUG_
+     Serial.print("Init done");
+     #endif
+  TIMSK0 |= _BV(OCIE0A);
+  interrupts(); 
     //char data[]="\x05\x03\x07";
     //create_packet(0x03,0x03,data);
     //serial.send(0x01,1);
-    timer.setInterval(10, handleTasks); //timer interval
+    //timer.setInterval(10, handleTasks); //timer interval
+//   send_rssi_ic();
     
 //    Serial.println("Init over");
 //    Serial.println(returnangle());
@@ -918,9 +1418,13 @@ void setup() {
 
 void loop() {
   //unsigned long st=millis();
-  timer.run();
+  //timer.run();
   serial.update();
-  
+  #ifdef __DEBUG_
+  Serial.println(returnangle());
+  #endif
+//  Serial.println(returnangle());
+ delay(100);
  
 }
 

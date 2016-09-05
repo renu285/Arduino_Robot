@@ -33,7 +33,10 @@
 #define returnu3 0x0A
 #define movefwdist 0x0B
 #define movebkdist 0x0C
-
+#define GET_MAG_DATA 0x0D
+#define GET_RSSI 0x0E
+#define GET_ID 0x0F
+#define SET_ID 0x10
 
 /*setting packet location
  * 
@@ -46,5 +49,15 @@
 #define ch_location 4
 #define cl_location 5
 #define length_location 6
+
+
+/*
+ * matrix/
+ * 
+ * 
+ */
+
+#define MATRIX_DIM 3
+char matrix[3][3]={{0,1,0},{1,0,1},{0,1,0}};
 
  
