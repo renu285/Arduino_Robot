@@ -1,6 +1,7 @@
 #include "PinChangeInt.h"
 #include "PacketSerial.h"
 #include "definitions.h"
+#include "MAG_P.h"
 #include<Wire.h>
 #include<math.h>
 #include<EEPROM.h>
@@ -12,135 +13,199 @@ PacketSerial serial;
 char ssid[]="ssid";
 char pwd[]="pwd";
 char ssid_pwd[]={'r','e','n','s','_','w','i','f','i',0xA9,'1','2','3','4','5','6','7','8'};
-int COMMAND=0x00;
+int COMMAND=0x05;
 int call1,call2;
 int distance=500;
 int timetask;
 int rotateangle=45;
+int rotateAngle=45;
+int currentAngle;
 long rssi;
 int startTask=0;
-double mag_x_scale= 1.0/(-171 + 580); //offset scale factor: 1.0/(max_x - min_x)
- double mag_y_scale= 1.0/(716-318);    //offset scale factor: 1.0/(max_y - min_y)
-    
+
+void move_forward()
+{
+  digitalWrite(3,LOW);
+  digitalWrite(11,HIGH);
+  digitalWrite(9,HIGH);
+  digitalWrite(10,LOW);
+}
+void move_backward()
+{
+  digitalWrite(3,HIGH);
+  digitalWrite(11,LOW);
+  digitalWrite(9,LOW);
+  digitalWrite(10,HIGH);
+}
+
+void stop_loco()
+{
+  digitalWrite(3,LOW);
+  digitalWrite(11,LOW);
+  digitalWrite(9,LOW);
+  digitalWrite(10,LOW);
+}
+
+void move_left()
+{
+  digitalWrite(3,LOW);
+  digitalWrite(11,HIGH);
+  digitalWrite(9,LOW);
+  digitalWrite(10,LOW);
+}
+
+void move_right()
+{
+   digitalWrite(9,HIGH);
+  digitalWrite(10,LOW);
+  digitalWrite(3,LOW);
+  digitalWrite(11,LOW);
+  
+}
+
+double returndfront()
+{
+
+ 
+}
+
+double returndleft()
+{
+
+
+ 
+}
+
+double returndright()
+{
+
+
+ 
+}
+
+
+//double mag_x_scale= 1.0/(-171 + 580); //offset scale factor: 1.0/(max_x - min_x)
+// double mag_y_scale= 1.0/(716-318);    //offset scale factor: 1.0/(max_y - min_y)
+//    
 /**********************************************************************************************************************************************************
 **********************************************************MAGNETOMETER FN*************************************************************************/
 
-void mag_config(void)
-{
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x11);              // cntrl register2
-  Wire.write(0x80);              // send 0x80, enable auto resets
-  Wire.endTransmission();       // stop transmitting
-  
-  delay(15);
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x10);              // cntrl register1
-  Wire.write(1);                 // send 0x01, active mode
-  Wire.endTransmission();       // stop transmitting
-}
-
-int readx(void)
-{
-  int xl, xh;  //define the MSB and LSB
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x01);              // x MSB reg
-  Wire.endTransmission();       // stop transmitting
- 
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
-  while(Wire.available())    // slave may send less than requested
-  { 
-    xh = Wire.read(); // receive the byte
-  }
-  
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x02);              // x LSB reg
-  Wire.endTransmission();       // stop transmitting
- 
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
-  while(Wire.available())    // slave may send less than requested
-  { 
-    xl = Wire.read(); // receive the byte
-  }
-  
-  int xout = (xl|(xh << 8)); //concatenate the MSB and LSB
-  return xout;
-}
-
-int ready(void)
-{
-  int yl, yh;  //define the MSB and LSB
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x03);              // y MSB reg
-  Wire.endTransmission();       // stop transmitting
- 
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
-  while(Wire.available())    // slave may send less than requested
-  { 
-    yh = Wire.read(); // receive the byte
-  }
-  
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x04);              // y LSB reg
-  Wire.endTransmission();       // stop transmitting
- 
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
-  while(Wire.available())    // slave may send less than requested
-  { 
-    yl = Wire.read(); // receive the byte
-  }
-  
-  int yout = (yl|(yh << 8)); //concatenate the MSB and LSB
-  return yout;
-}
-
-int readz(void)
-{
-  int zl, zh;  //define the MSB and LSB
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x05);              // z MSB reg
-  Wire.endTransmission();       // stop transmitting
- 
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
-  while(Wire.available())    // slave may send less than requested
-  { 
-    zh = Wire.read(); // receive the byte
-  }
-  
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
-  Wire.write(0x06);              // z LSB reg
-  Wire.endTransmission();       // stop transmitting
- 
-  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
-  
-  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
-  while(Wire.available())    // slave may send less than requested
-  { 
-    zl = Wire.read(); // receive the byte
-  }
-  
-  int zout = (zl|(zh << 8)); //concatenate the MSB and LSB
-  return zout;
-}
+//void mag_config(void)
+//{
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x11);              // cntrl register2
+//  Wire.write(0x80);              // send 0x80, enable auto resets
+//  Wire.endTransmission();       // stop transmitting
+//  
+//  delay(15);
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x10);              // cntrl register1
+//  Wire.write(1);                 // send 0x01, active mode
+//  Wire.endTransmission();       // stop transmitting
+//}
+//
+//int readx(void)
+//{
+//  int xl, xh;  //define the MSB and LSB
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x01);              // x MSB reg
+//  Wire.endTransmission();       // stop transmitting
+// 
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
+//  while(Wire.available())    // slave may send less than requested
+//  { 
+//    xh = Wire.read(); // receive the byte
+//  }
+//  
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x02);              // x LSB reg
+//  Wire.endTransmission();       // stop transmitting
+// 
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
+//  while(Wire.available())    // slave may send less than requested
+//  { 
+//    xl = Wire.read(); // receive the byte
+//  }
+//  
+//  int xout = (xl|(xh << 8)); //concatenate the MSB and LSB
+//  return xout;
+//}
+//
+//int ready(void)
+//{
+//  int yl, yh;  //define the MSB and LSB
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x03);              // y MSB reg
+//  Wire.endTransmission();       // stop transmitting
+// 
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
+//  while(Wire.available())    // slave may send less than requested
+//  { 
+//    yh = Wire.read(); // receive the byte
+//  }
+//  
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x04);              // y LSB reg
+//  Wire.endTransmission();       // stop transmitting
+// 
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
+//  while(Wire.available())    // slave may send less than requested
+//  { 
+//    yl = Wire.read(); // receive the byte
+//  }
+//  
+//  int yout = (yl|(yh << 8)); //concatenate the MSB and LSB
+//  return yout;
+//}
+//
+//int readz(void)
+//{
+//  int zl, zh;  //define the MSB and LSB
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x05);              // z MSB reg
+//  Wire.endTransmission();       // stop transmitting
+// 
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
+//  while(Wire.available())    // slave may send less than requested
+//  { 
+//    zh = Wire.read(); // receive the byte
+//  }
+//  
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.beginTransmission(MAG_ADDR); // transmit to device 0x0E
+//  Wire.write(0x06);              // z LSB reg
+//  Wire.endTransmission();       // stop transmitting
+// 
+//  delayMicroseconds(2); //needs at least 1.3us free time between start and stop
+//  
+//  Wire.requestFrom(MAG_ADDR, 1); // request 1 byte
+//  while(Wire.available())    // slave may send less than requested
+//  { 
+//    zl = Wire.read(); // receive the byte
+//  }
+//  
+//  int zout = (zl|(zh << 8)); //concatenate the MSB and LSB
+//  return zout;
+//}
 
 int returnangle()
 {
@@ -519,13 +584,21 @@ void onPacket(const uint8_t* buffer, size_t size)
 {
   int i;
   Serial.println("pack received");
+  Serial.println(size);
   //serial.send(buffer,size);
   //uint8_t* temp_data;
   uint8_t temp_data[size]; 
-
+ for(i=0; i< size-1 ; i++ )
+  {
+    Serial.print(buffer[i],HEX);;
+    Serial.print(" ");  
+  }
+  Serial.println("");
+  
   // Copy the packet into our temporary buffer.
   memcpy(temp_data, buffer, size); 
-
+   
+ 
 //  char *temp_data=(char*)buffer;
 //  temp_data=(uint8_t*)calloc(size,sizeof(char*)); 
 //  memcpy(temp_data,buffer,size);
@@ -538,6 +611,7 @@ void onPacket(const uint8_t* buffer, size_t size)
   }
   if(temp_data[size-1]==checksum)
   {
+    Serial.println("checksum okay");
     //Serial.print(temp_data[0],HEX);
     //serial.send(temp_data,size);
 //    Serial.println(temp_data[3]&0xE0,HEX);
@@ -858,10 +932,6 @@ void parse_data(uint8_t* temp_data,int size)
   }
   
 
-  
-  
-
-
 /********************************************************************************************************************************************
  *************************************************************PACKET FORMATION FUNCTIONS
  */
@@ -871,7 +941,7 @@ int call=0;
 int rotationsd;
 
 int endTask;
-int iniangle;
+int iniangle,iniAngle;
 
 int rotations_left=0;
 int rotations_right=0;
@@ -896,7 +966,7 @@ SIGNAL(TIMER0_COMPA_vect) {
   sei();
   timer_count++;
   //Serial.println(timer_count);
-  if(timer_count >= 20)
+  if(timer_count >= 50)
   {
     
     //Serial.println("interrupt received");
@@ -952,86 +1022,213 @@ SIGNAL(TIMER0_COMPA_vect) {
     if(startTask==0)
         {
           //Serial.println("start task=0");
-         iniangle=returnangle();
+         iniAngle=return_angle(avgx(),avgy());
          //Serial.println(iniangle);
          startTask=1;
         }
         else if (startTask==1)
         {
-          
-          if(iniangle>0 && iniangle<=180)
-          {
-            
-              if((returnangle()-iniangle)>=abs(rotateangle))
-              {
-                #ifdef __DEBUG
-                Serial.println("start task=1");
-                Serial.println(returnangle());
-                #endif
-                stop_loco();
-                COMMAND=0;
-                startTask=0;
-              }
-              else if(returnangle()-iniangle < abs(rotateangle))
-              {
-                move_right();
-              }
-         
-          }
-          if(iniangle>180 && iniangle<=270)
-          {
-              if(returnangle()-iniangle>=abs(rotateangle))
-              {
-                stop_loco();
-                COMMAND=0;
-                startTask=0;
-              }
-              else if((returnangle()-iniangle) < abs(rotateangle))
-              {
-                move_right();
-              }
-         
-          }
-          if(iniangle>270 && iniangle<=360)
-          {
-            if(rotateangle<90)
-            {
-              if(returnangle()-iniangle>=abs(rotateangle))
-              {
-                stop_loco();
-                COMMAND=0;
-                startTask=0;
-              }
-              else if((returnangle()-iniangle) < abs(rotateangle))
-              {
-                move_right();
-              }
-            }
-            if(rotateangle>90 && rotateangle<=180)
-            {
-             if(returnangle()>270 && returnangle()<=360)
-              {
-                move_right();
-              }
-
-              else if(returnangle()>0 && returnangle()<=150)
-              {
-                  if(returnangle()+360 - iniangle>rotateangle)
-                  {
-                    stop_loco();
-                    COMMAND=0;
-                    startTask=0;
-                  }
-                  else
-                  {
-                    move_right();
-                  }
-              }
-              
-              
-            }
-          }
+          currentAngle=return_angle(avgx(),avgy());
+  //Serial.println(return_angle(avgx(),avgy()));
+  if(rotateAngle<90)
+  { 
+  if(iniAngle<=270)
+  {
+  if((currentAngle-iniAngle) < rotateAngle )
+  {
+    Serial.println("Rotate Left");
+  }
+  else if((currentAngle-iniAngle) >= rotateAngle)
+  {
+    Serial.println("Stop");
+    COMMAND=0;
+  }
+  }
+  else if(iniAngle>=270)
+  {
+    if(currentAngle>0 && currentAngle<=180 && ((currentAngle+360-iniAngle)>rotateAngle))
+    {
+      Serial.println("Stop");
+    }
+//    else if(currentAngle>0 && currentAngle<=180 && ((currentAngle+360-iniAngle)<rotateAngle))
+//    {
+//      Serial.println("Rotate Left");
+//    }
+    else if(currentAngle>270 && currentAngle<=360)
+    {
+      if((currentAngle-iniAngle)>rotateAngle)
+      {
+        Serial.println("Stop");
       }
+      else if((currentAngle-iniAngle)<rotateAngle)
+      {
+        Serial.println("Rotate");
+      }
+    }
+  }
+  
+  
+  }
+  else if(rotateAngle>=90 && rotateAngle<180 && iniAngle<270)
+  {
+    if((currentAngle-iniAngle) < rotateAngle )
+  {
+    Serial.println("Rotate Left");
+  }
+  else if((currentAngle-iniAngle) >= rotateAngle)
+  {
+    Serial.println("Stop");
+    COMMAND=0;
+  }
+  }
+  else if(rotateAngle>=90 && rotateAngle<180 && iniAngle>270 )
+  {
+    if(currentAngle>0 && currentAngle<180)
+    {
+      if((360+currentAngle-iniAngle)>rotateAngle)
+      {
+        Serial.println("Stop");
+        COMMAND=0; 
+      }
+      else
+      {
+        Serial.print("Rotate Left");
+      }
+    }
+
+    else if(currentAngle>270 && currentAngle<=360 )
+    {
+      Serial.println(currentAngle);
+      Serial.println("Rotate Left");
+    }
+//      else if((currentAngle-iniAngle) < rotateAngle && code!=0)
+//      {
+//        Serial.println("Rotate Left");
+//      }
+    }
+
+    if(rotateAngle>=180 && iniAngle>180)
+    {
+      if(currentAngle>0 && currentAngle<180)
+      {
+         if((360+currentAngle-iniAngle)>rotateAngle)
+         
+         {
+          Serial.println("Stop");
+         COMMAND=0;
+         }
+         else if( ((360+currentAngle-iniAngle)<rotateAngle))
+         Serial.print("Rotate");
+      }
+      else if(currentAngle>180 && currentAngle<360 )
+      {
+        Serial.println("Rotate Left");
+      }
+      
+    }
+     if(rotateAngle>=180 && iniAngle<90)
+     {
+      if(currentAngle-iniAngle<rotateAngle)
+      {
+        Serial.println("Rotate Left");
+        Serial.println(currentAngle);
+        COMMAND=0;
+      }
+      else if((currentAngle-iniAngle)>=rotateAngle)
+      {
+        Serial.println("Stop");
+      }
+      
+     }
+
+     if(rotateAngle>=180 && iniAngle>=90 && iniAngle<=180)
+     {
+      if(currentAngle-iniAngle<rotateAngle)
+      {
+        Serial.println("Rotate Left");
+      }
+
+      else if(currentAngle-iniAngle>=rotateAngle)
+      {
+        Serial.println("Stop");
+      }
+      
+     }
+     
+ 
+//          if(iniangle>0 && iniangle<=180)
+//          {
+//            
+//              if((returnangle()-iniangle)>=abs(rotateangle))
+//              {
+//                #ifdef __DEBUG
+//                Serial.println("start task=1");
+//                Serial.println(returnangle());
+//                #endif
+//                stop_loco();
+//                COMMAND=0;
+//                startTask=0;
+//              }
+//              else if(returnangle()-iniangle < abs(rotateangle))
+//              {
+//                move_right();
+//              }
+//         
+//          }
+//          if(iniangle>180 && iniangle<=270)
+//          {
+//              if(returnangle()-iniangle>=abs(rotateangle))
+//              {
+//                stop_loco();
+//                COMMAND=0;
+//                startTask=0;
+//              }
+//              else if((returnangle()-iniangle) < abs(rotateangle))
+//              {
+//                move_right();
+//              }
+//         
+//          }
+//          if(iniangle>270 && iniangle<=360)
+//          {
+//            if(rotateangle<90)
+//            {
+//              if(returnangle()-iniangle>=abs(rotateangle))
+//              {
+//                stop_loco();
+//                COMMAND=0;
+//                startTask=0;
+//              }
+//              else if((returnangle()-iniangle) < abs(rotateangle))
+//              {
+//                move_right();
+//              }
+//            }
+//            if(rotateangle>90 && rotateangle<=180)
+//            {
+//             if(returnangle()>270 && returnangle()<=360)
+//              {
+//                move_right();
+//              }
+//
+//              else if(returnangle()>0 && returnangle()<=150)
+//              {
+//                  if(returnangle()+360 - iniangle>rotateangle)
+//                  {
+//                    stop_loco();
+//                    COMMAND=0;
+//                    startTask=0;
+//                  }
+//                  else
+//                  {
+//                    move_right();
+//                  }
+//              }
+//              
+//              
+//            }
+          }
+    //  }
     break;
 //    if(startTask==0)
 //    {
@@ -1077,7 +1274,7 @@ SIGNAL(TIMER0_COMPA_vect) {
         if(startTask==0)
         {
          iniangle=returnangle();
-         #ifdef __DEBUG
+         #ifdef __DEBUG_
          Serial.println(iniangle);
          #endif
          startTask=1;
@@ -1273,9 +1470,6 @@ SIGNAL(TIMER0_COMPA_vect) {
     
   }
   }
-
-  
-  
 }
 
 /*LOCOMOTION
@@ -1285,50 +1479,9 @@ SIGNAL(TIMER0_COMPA_vect) {
  * 
  */
 
-void move_forward()
-{
-  digitalWrite(3,LOW);
-  digitalWrite(11,HIGH);
-  digitalWrite(9,HIGH);
-  digitalWrite(10,LOW);
-}
-void move_backward()
-{
-  digitalWrite(3,HIGH);
-  digitalWrite(11,LOW);
-  digitalWrite(9,LOW);
-  digitalWrite(10,HIGH);
-}
 
-void stop_loco()
-{
-  digitalWrite(3,LOW);
-  digitalWrite(11,LOW);
-  digitalWrite(9,LOW);
-  digitalWrite(10,LOW);
-}
-
-void move_left()
-{
-  digitalWrite(3,LOW);
-  digitalWrite(11,HIGH);
-  digitalWrite(9,LOW);
-  digitalWrite(10,LOW);
-}
-
-void move_right()
-{
-   digitalWrite(9,HIGH);
-  digitalWrite(10,LOW);
-  digitalWrite(3,LOW);
-  digitalWrite(11,LOW);
-  
-}
 void hall_interrupt()
-
 {
-  //call enable interrupt function here
-
 if(call2==1)
 {
  
@@ -1405,8 +1558,9 @@ void setup() {
      #ifdef __DEBUG_
      Serial.print("Init done");
      #endif
+       OCR0A = 0xAF;
   TIMSK0 |= _BV(OCIE0A);
-  //interrupts(); 
+  interrupts(); 
     //char data[]="\x05\x03\x07";
     //create_packet(0x03,0x03,data);
     //serial.send(0x01,1);
@@ -1434,25 +1588,5 @@ void loop() {
 
 
 
-
-double returndfront()
-{
-
- 
-}
-
-double returndleft()
-{
-
-
- 
-}
-
-double returndright()
-{
-
-
- 
-}
 
 
